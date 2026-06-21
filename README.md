@@ -2,7 +2,7 @@
 
 A career-readiness platform that helps students turn internships, class projects, campus jobs, volunteer work, and leadership experiences into resume bullets, interview stories, LinkedIn language, elevator pitches, career fair talking points, presentations, and reflections.
 
-Built with **Next.js 14 (App Router)**, **React**, **TypeScript**, and **Tailwind CSS**. No database, no API key — all generation is mocked and runs fully on the frontend.
+Built with **Next.js 14 (App Router)**, **React**, **TypeScript**, and **Tailwind CSS**. No database. Generation is powered by **Google Gemini** through a backend route, with a built-in mock fallback if no API key is configured.
 
 ## Run it locally
 
@@ -39,20 +39,24 @@ Logic lives in `lib/`:
 - `lib/options.ts` — dropdown option lists
 - `lib/types.ts` — shared TypeScript types
 
-## Swapping the mock AI for a real API later
+## AI generation (Google Gemini)
 
-All generation is isolated in `lib/generate.ts` behind one function:
+Real generation is powered by **Google Gemini** (free tier) through a backend route:
 
-```ts
-generateStory(input: StudentInput): Promise<GeneratedStory>
-```
+- `app/api/generate/route.ts` — calls Gemini using `process.env.GEMINI_API_KEY`. The key lives **only on the server** and is never exposed to the browser.
+- `lib/generate.ts` — `generateStory()` POSTs to that route. If no key is set or the model call fails, it falls back to a deterministic mock so the app always works.
 
-It already returns a `Promise` and is `await`ed by the UI, so going live means only:
+### Add your free key
 
-1. Add a backend route (e.g. `app/api/generate/route.ts`) that calls your model.
-2. Replace the body of `generateStory` with a `fetch` to that route, returning a `GeneratedStory`-shaped object.
+1. Get a free key at https://aistudio.google.com/apikey
+2. **Local dev:** put it in `.env.local` (gitignored):
+   ```
+   GEMINI_API_KEY=your_key_here
+   ```
+   Then restart `npm run dev`.
+3. **Production (Vercel):** Project → Settings → Environment Variables → add `GEMINI_API_KEY` with the same value, then redeploy.
 
-No component changes are required.
+Without a key the app still runs — it just uses the built-in mock generator.
 
 ## Note on responsible use
 

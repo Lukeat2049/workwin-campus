@@ -8,20 +8,17 @@ import {
 } from "./types";
 
 /**
- * Mock career-story generator.
+ * Career-story generator.
  *
- * This file isolates ALL generation logic so it can later be swapped for a
- * real AI API call without touching the UI. To go live:
+ * `generateStory` (the public API the UI awaits) POSTs to the backend route
+ * `/api/generate`, which calls Google Gemini when a key is configured. If the
+ * route is unavailable or errors, it falls back to `buildMockStory` below so the
+ * demo always works.
  *
- *   1. Keep the `generateStory(input): Promise<GeneratedStory>` signature.
- *   2. Replace the body of `generateStory` with a fetch to your backend route
- *      (e.g. POST /api/generate) that calls the model and returns a
- *      GeneratedStory-shaped JSON object.
- *   3. The components already `await` this function, so no UI changes needed.
- *
- * Everything below is deterministic string assembly that weaves the student's
- * actual inputs into specific, grammatical output (no real model involved yet).
- * The guiding rule: build from the student's OWN words, never invent details.
+ * `buildMockStory` is deterministic string assembly that weaves the student's
+ * actual inputs into specific, grammatical output (no model involved). The
+ * guiding rule: build from the student's OWN words, never invent details. The
+ * backend route imports it as its own fallback when no API key is set.
  */
 
 // ---------- small text helpers ----------
@@ -551,16 +548,13 @@ function buildImprovements(input: StudentInput): string[] {
   return tips.slice(0, 5);
 }
 
-// ---------- public API ----------
+// ---------- mock fallback ----------
 
 /**
- * Generate a full career story from the student's input.
- * Currently mock; returns a Promise so the call site is already async-ready
- * for a future real API call.
+ * Deterministic, no-AI story built entirely from the student's own words.
+ * Used as the fallback when the backend route or model is unavailable.
  */
-export async function generateStory(
-  input: StudentInput
-): Promise<GeneratedStory> {
+export function buildMockStory(input: StudentInput): GeneratedStory {
   return {
     summary: buildSummary(input),
     resumeBullets: buildResumeBullets(input),
@@ -574,4 +568,28 @@ export async function generateStory(
     presentation: buildPresentation(input),
     improvements: buildImprovements(input),
   };
+}
+
+// ---------- public API ----------
+
+/**
+ * Generate a full career story from the student's input.
+ * Calls the backend route (which uses Gemini when a key is configured) and
+ * falls back to the local mock builder if the request fails for any reason.
+ */
+export async function generateStory(
+  input: StudentInput
+): Promise<GeneratedStory> {
+  try {
+    const res = await fetch("/api/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+    return (await res.json()) as GeneratedStory;
+  } catch {
+    // Network error / route unavailable — keep the demo working.
+    return buildMockStory(input);
+  }
 }
